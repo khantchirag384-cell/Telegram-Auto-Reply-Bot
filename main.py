@@ -1,33 +1,38 @@
-import logging
-from telegram.ext import Updater, MessageHandler, Filters
-import openai
 import os
+import logging
+from telegram.ext import ApplicationBuilder, MessageHandler, filters
+import openai
 
-logging.basicConfig(level=logging.INFO)
+# Logging setup
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+)
 
+# Load tokens from Heroku Config Vars
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+# Initialize OpenAI API
 openai.api_key = OPENAI_API_KEY
 
-def chatgpt_reply(update, context):
-    user_text = update.message.text
+async def chatgpt_reply(update, context):
+    user_message = update.message.text
     try:
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": user_text}]
+            messages=[{"role": "user", "content": user_message}]
         )
         reply = response["choices"][0]["message"]["content"]
-        update.message.reply_text(reply)
+        await update.message.reply_text(reply)
     except Exception as e:
-        update.message.reply_text("⚠️ Error: Unable to generate reply.")
-        print(e)
+        await update.message.reply_text("⚠️ Error generating reply.")
+        logging.error(e)
 
 def main():
-    updater = Updater(TELEGRAM_TOKEN, use_context=True)
-    dp = updater.dispatcher
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, chatgpt_reply))
-    updater.start_polling()
-    updater.idle()
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chatgpt_reply))
+    app.run_polling()
 
 if __name__ == "__main__":
     main()
